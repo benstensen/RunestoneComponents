@@ -43,6 +43,7 @@ nosetests.xml
 bower_componenets/
 .venv
 *~
+env/
 
 # Files produced by runestone builds.
 runestone/*/test/build_info
