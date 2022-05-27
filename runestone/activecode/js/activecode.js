@@ -104,6 +104,9 @@ export class ActiveCode extends RunestoneBase {
         this.autorun = $(orig).data("autorun");
 
         // Member variables for collaborative features
+        this.enableDebug = true;
+        this.debugButton = null;
+
         this.enableCollab = true;
         this.collabButton = null;
         this.collabRoomName = null;
@@ -337,6 +340,10 @@ export class ActiveCode extends RunestoneBase {
             this.addCollabButton(ctrlDiv);
         }
 
+        if (this.enableDebug) {
+            this.addDebugButton(ctrlDiv);
+        }
+
         $(this.outerDiv).prepend(ctrlDiv);
         if (this.question) {
             if ($(this.question).html().match(/^\s+$/)) {
@@ -452,6 +459,21 @@ export class ActiveCode extends RunestoneBase {
         this.yUndoManager = null;
         this.binding = null;
         this.collabRoomName = null;
+    }
+
+    addDebugButton(ctrlDiv) {
+        let butt = document.createElement("button");
+        $(butt).text("Debug");
+        $(butt).addClass("btn debug-button btn-info");
+        ctrlDiv.appendChild(butt);
+        this.debugButton = butt;
+        $(butt).click(this.debugHandler.bind(this));
+        $(butt).attr("type", "button");
+    }
+
+    // Magic debug button
+    debugHandler() {
+        console.log("debugHandler called");
     }
 
     enableHideShow(ctrlDiv) {
