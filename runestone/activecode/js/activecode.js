@@ -35,6 +35,11 @@ import embed from "vega-embed";
 // Adapt for use outside webpack -- see https://github.com/vega/vega-embed.
 window.vegaEmbed = embed;
 
+// For collaboration features
+import * as Y from "yjs";
+import { CodemirrorBinding } from "y-codemirror";
+import { WebrtcProvider } from "y-webrtc";
+
 var isMouseDown = false;
 document.onmousedown = function () {
     isMouseDown = true;
@@ -97,6 +102,17 @@ export class ActiveCode extends RunestoneBase {
         this.historyScrubber = null;
         this.timestamps = ["Original"];
         this.autorun = $(orig).data("autorun");
+
+        // Member variables for collaborative features
+        this.enableCollab = true;
+        this.collabButton = null;
+        this.collabRoomName = null;
+        this.yDoc = null;
+        this.provider = null;
+        this.yText = null;
+        this.yUndoManager = null;
+        this.binding = null;
+
         if (this.chatcodes && eBookConfig.enable_chatcodes) {
             if (!socket) {
                 socket = new WebSocket("wss://" + chatcodesServer);
@@ -316,6 +332,10 @@ export class ActiveCode extends RunestoneBase {
         if (this.chatcodes && eBookConfig.enable_chatcodes) {
             this.enableChatCodes(ctrlDiv);
         }
+        // Enable Button for Collaboration
+        if (this.enableCollab) {
+            this.addCollabButton(ctrlDiv);
+        }
 
         $(this.outerDiv).prepend(ctrlDiv);
         if (this.question) {
@@ -360,6 +380,78 @@ export class ActiveCode extends RunestoneBase {
         this.downloadButton = butt;
         $(butt).click(this.downloadFile.bind(this, this.language));
         $(butt).attr("type", "button");
+    }
+
+    addCollabButton(ctrlDiv) {
+        let butt = document.createElement("button");
+        $(butt).text("Go Online");
+        $(butt).addClass("btn collab-button btn-primary");
+        ctrlDiv.appendChild(butt);
+        this.collabButton = butt;
+        $(butt).click(this.startCollab.bind(this));
+        $(butt).attr("type", "button");
+    }
+
+    startCollab() {
+        console.log("startCollab called");
+        let targetRoom = prompt("Enter a room name to join, or leave blank to create a new room");
+        if (targetRoom === null) {
+            return;
+        }
+        targetRoom = targetRoom.toString();
+        let newRoom = false;
+        if (targetRoom === "") {
+            newRoom = true;
+            targetRoom = Math.floor(Math.random() * 10000).toString();
+        }
+
+        let butt = this.collabButton;
+        $(butt).text("Go Offline");
+        $(butt).removeClass("btn-primary");
+        $(butt).addClass("btn-danger");
+        $(butt).unbind("click");
+        $(butt).click(this.endCollab.bind(this));
+
+        this.yDoc = new Y.Doc();
+
+        // Should probably check if room exists (How will we store this info?)
+        this.provider = new WebrtcProvider(targetRoom, this.yDoc);
+        this.yText = this.yDoc.getText("editor");
+        if (newRoom) {
+            this.yText.insert(0, this.code);
+        }
+
+        this.provider.awareness.setLocalStateField("user", { name: eBookConfig.username });
+        this.yUndoManager = new Y.UndoManager(this.yText);
+        this.binding = new CodemirrorBinding(this.yText, this.editor, this.provider.awareness, { yUndoManager: this.yUndoManager});
+        
+        if (newRoom) {
+            alert(`Created a new room with id ${targetRoom}`);
+            console.log(`Created room: ${targetRoom}`);
+        }
+
+        this.collabRoomName = targetRoom;
+    }
+
+    endCollab() {
+        console.log("endCollab called");
+        console.log(`disconnecting from room "${this.collabRoomName}"`);
+        let butt = this.collabButton;
+        $(butt).text("Go Online");
+        $(butt).removeClass("btn-danger");
+        $(butt).addClass("btn-primary");
+        $(butt).unbind("click");
+        $(butt).click(this.startCollab.bind(this));
+
+        this.binding.destroy();
+        this.yDoc.destroy();
+        
+        this.yDoc = null;
+        this.provider = null;
+        this.yText = null;
+        this.yUndoManager = null;
+        this.binding = null;
+        this.collabRoomName = null;
     }
 
     enableHideShow(ctrlDiv) {
