@@ -13,6 +13,36 @@ RunestoneComponents
 
 Packaging of the Runestone components for publishing educational materials using Sphinx and restructuredText. Check out the `Overview <http://interactivepython.org/runestone/static/overview/overview.html>`_ To see all of the extensions in action.
 
+This Fork
+=========
+The ``collab`` branch of this fork aims to make the ActiveCode editors available in Runestone collaborative between users. Currently, ActiveCode uses CodeMirror as the basis for its editor, which opens us to use ``yjs``, ``y-codemirror``, and a network provider to make the editor collaborative. To see changes from this repo in action, follow `this guide <https://runestoneserver.readthedocs.io/en/latest/docker/README.html#setup>`_ and run 
+
+``python3 docker_tools.py build --single-dev --clone-rc benstensen``.
+
+Make sure you switch to the right branch (all changes for these new features should be on the ``collab`` branch). ``cd RunestoneComponents``, set up a Python virtual environment, then ``pip install -r requirements.txt`` and ``pip install -e .``. Finally, set up npm by running and then run `npm install`. Every time a textbook is rebuilt, changes to the RunestoneComponents code should be reflected. See the above link for more info on setting up Runestone on your local machine.
+
+TODO
+----
+Binding a yText to the current editor is mostly trivial. Some areas that require work or thought are:
+
+* **Permissions**: How should we make sure that users are only joining collaborative sessions that they are supposed to join? If we have a coding activity *A*, how should we make sure that people don't use the editor for coding activity *B* to join activity *A*? How should we make sure people can't join collaborative sessions during, e.g., exams or other assessments?
+* **Data persistence**: How should the data related to collaboration be stored within the Runestone ecosystem? Database? Local user storage? How should we integrate collaboration events into Runestone's logging?
+* **Networking and communication**: `See here. <https://docs.yjs.dev/ecosystem/connection-provider>`_ How should we integrate these collaborative features into the network so that changes are properly served to participants? How should we make collaborative sessions discoverable between users? 
+* **Moderation**: Online communication can easily be used by bad actors for harassment, bullying, spam, etc. What features should be implemented to help combat these? This would probably use logging and a user reporting system to incur manual review by a course instructor or other faculty.
+* **Other communication features**: Adding a text chat alongside the collaborative editor would aid in communication between collaborators. What awareness features should we have during a collaboration session?
+* **Error handling and bug testing**: Once the above areas are more fleshed out, it should be more apparent what this entails. 
+
+Current Progress
+----------------
+Used ``y-codemirror`` to bind a yText object to the editor to enable collaboration. Collaboration can be initiated by the "Go Online" button provided in the controls for the code editor. The user either enters a room name to join an active session, or leaves the field empty to create a new room with an automatically assigned room number (how do we keep track of the room numbers in use to avoid collision?). The user can then go offline by pressing the "Go Offline" button.
+
+The current network provider in use is ``y-webrtc``, which is useful for demos and local testing, but probably not scalable enough for the goals of this project. Again, `see here <https://docs.yjs.dev/ecosystem/connection-provider>`_ for some potential network providers to be used. 
+
+I might add a "debug" button to the page for developmental convenience. Probably just to trigger a bunch of ``console.log()`` statements. 
+
+Original RunestoneComponents README
+===================================
+
 Runestone Version 6
 -------------------
 
