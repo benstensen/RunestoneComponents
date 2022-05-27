@@ -19,7 +19,7 @@ The ``collab`` branch of this fork aims to make the ActiveCode editors available
 
 ``python3 docker_tools.py build --single-dev --clone-rc benstensen``.
 
-Make sure you switch to the right branch (all changes for these new features should be on the ``collab`` branch). ``cd RunestoneComponents``, set up a Python virtual environment, then ``pip install -r requirements.txt`` and ``pip install -e .``. Finally, set up npm by running and then run `npm install`. Every time a textbook is rebuilt, changes to the RunestoneComponents code should be reflected. See the above link for more info on setting up Runestone on your local machine.
+Make sure you switch to the right branch (all changes for these new features should be on the ``collab`` branch). ``cd RunestoneComponents``, set up a Python virtual environment, then ``pip install -r requirements.txt`` and ``pip install -e .``. Finally, set up npm by running ``npm install``. Every time a textbook is rebuilt, changes to the RunestoneComponents code should be reflected. See the above link for more info on setting up Runestone on your local machine.
 
 TODO
 ----
