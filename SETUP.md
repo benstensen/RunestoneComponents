@@ -69,6 +69,6 @@ At this point, you should have everything you need to start developing. I will p
 2. A tab in the ``RunestoneServer`` directory. Whenever you want to see the changes in your code reflected in the browser, type ``rsmanage build --course fopp``, and then refresh the page. 
 3. A tab in the ``RunestoneComponents`` directory, running ``npm run watch``.
 
-The key thing here: execute ``npm run build`` from ``runestone/RunestoneComponents``, then ``rsmanage build --course fopp`` from ``runestone/RunestoneServer`` when you want to update the scripts being executed in the browser. Runestone should be served to ``localhost``.
+The key thing here: execute ``npm run build`` from ``runestone/RunestoneComponents``, then ``rsmanage build --course fopp`` from ``runestone/RunestoneServer`` when you want to update the scripts being executed in the browser. Runestone should be served from ``localhost`` while your containers are running.
 
 Most code related to the ActiveCode editor is in ``runestone/RunestoneComponents/runestone/activecode/js``. 
