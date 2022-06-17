@@ -28,6 +28,7 @@ import "./prettify.js";
 import "../css/parsons.css";
 import "../css/prettify.css";
 import LineBasedGrader from "./lineGrader";
+import DAGGrader from "./dagGrader";
 import ParsonsLine from "./parsonsLine";
 import ParsonsBlock from "./parsonsBlock";
 
@@ -76,7 +77,10 @@ export default class Parsons extends RunestoneBase {
         //     }
         // }
         this.initializeOptions();
-        this.grader = new LineBasedGrader(this);
+        this.grader =
+            this.options.grader === "dag"
+                ? new DAGGrader(this)
+                : new LineBasedGrader(this);
         this.grader.showfeedback = this.showfeedback;
         var fulltext = $(this.origElem).html();
         this.blockIndex = 0;
@@ -101,7 +105,9 @@ export default class Parsons extends RunestoneBase {
         var noindent = $(this.origElem).data("noindent");
         var adaptive = $(this.origElem).data("adaptive");
         var numbered = $(this.origElem).data("numbered");
+        var grader = $(this.origElem).data("grader");
         options["numbered"] = numbered;
+        options["grader"] = grader;
         if (maxdist !== undefined) {
             options["maxdist"] = maxdist;
         }
@@ -156,7 +162,7 @@ export default class Parsons extends RunestoneBase {
     // Based on what is specified in the original HTML, create the HTML view
     initializeView() {
         this.outerDiv = document.createElement("div");
-        $(this.outerDiv).addClass("parsons alert alert-warning");
+        $(this.outerDiv).addClass("parsons");
         this.outerDiv.id = this.counterId;
         this.parsTextDiv = document.createElement("div");
         $(this.parsTextDiv).addClass("parsons-text");
@@ -282,6 +288,10 @@ export default class Parsons extends RunestoneBase {
             var options = {};
             var distractIndex;
             var distractHelptext = "";
+            var tagIndex;
+            var tag;
+            var dependsIndex;
+            var depends = [];
             if (textBlock.includes("#paired:")) {
                 distractIndex = textBlock.indexOf("#paired:");
                 distractHelptext = textBlock
@@ -294,9 +304,22 @@ export default class Parsons extends RunestoneBase {
                     .substring(distractIndex + 12, textBlock.length)
                     .trim();
                 textBlock = textBlock.substring(0, distractIndex + 11);
+            } else if (textBlock.includes("#tag:")) {
+                textBlock = textBlock.replace(/#tag:.*;.*;/, (s) =>
+                    s.replace(/\s+/g, "")
+                ); // remove whitespace in tag and depends list
+                tagIndex = textBlock.indexOf("#tag:");
+                tag = textBlock.substring(tagIndex + 5, tagIndex + 6);
+                dependsIndex = textBlock.indexOf(";depends:");
+                let dependsString = textBlock.substring(
+                    dependsIndex + 9,
+                    textBlock.indexOf(";", dependsIndex + 9)
+                );
+                depends =
+                    dependsString.length > 0 ? dependsString.split(",") : [];
             }
             textBlock = textBlock.replace(
-                /#(paired|distractor)/,
+                /#(paired|distractor|tag:.*;.*;)/,
                 function (mystring, arg1) {
                     options[arg1] = true;
                     return "";
@@ -322,6 +345,10 @@ export default class Parsons extends RunestoneBase {
                     } else {
                         line.distractor = false;
                         line.paired = false;
+                        if (this.options.grader === "dag") {
+                            line.tag = tag;
+                            line.depends = depends;
+                        }
                         solution.push(line);
                     }
                     if ($.inArray(line.indent, indents) == -1) {
@@ -1405,7 +1432,10 @@ export default class Parsons extends RunestoneBase {
                     inSolutionIndexes.push(index);
                 }
             }
-            var lisIndexes = this.grader.inverseLISIndices(inSolutionIndexes);
+            var lisIndexes = this.grader.inverseLISIndices(
+                inSolutionIndexes,
+                inSolution
+            );
             for (let i = 0; i < lisIndexes.length; i++) {
                 notInSolution.push(inSolution[lisIndexes[i]]);
             }
@@ -2539,7 +2569,7 @@ export default class Parsons extends RunestoneBase {
 
 Parsons.counter = 0;
 
-$(document).bind("runestone:login-complete", function () {
+$(document).on("runestone:login-complete", function () {
     $("[data-component=parsons]").each(function (index) {
         if ($(this).closest("[data-component=timedAssessment]").length == 0) {
             try {

@@ -208,8 +208,11 @@ async function handlePageSetup() {
     } else {
         mess = "Not logged in";
         $(document).trigger("runestone:logout");
-        document.getElementById("browsing_warning").innerHTML =
-            "<p class='navbar_message'>Saving and Logging are Disabled</p>";
+        let bw = document.getElementById("browsing_warning");
+        if (bw) {
+            bw.innerHTML =
+                "<p class='navbar_message'>Saving and Logging are Disabled</p>";
+        }
     }
     $(".loggedinuser").html(mess);
 
@@ -225,7 +228,7 @@ function setupNavbarLoggedIn() {
         '<a href="' + eBookConfig.app + '/default/user/logout">Log Out</a>'
     );
 }
-$(document).bind("runestone:login", setupNavbarLoggedIn);
+$(document).on("runestone:login", setupNavbarLoggedIn);
 
 function setupNavbarLoggedOut() {
     if (eBookConfig.useRunestoneServices) {
@@ -241,7 +244,7 @@ function setupNavbarLoggedOut() {
         $(".footer").html("user not logged in");
     }
 }
-$(document).bind("runestone:logout", setupNavbarLoggedOut);
+$(document).on("runestone:logout", setupNavbarLoggedOut);
 
 function notifyRunestoneComponents() {
     // Runestone components wait until login process is over to load components because of storage issues. This triggers the `dynamic import machinery`, which then sends the login complete signal when this and all dynamic imports are finished.

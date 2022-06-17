@@ -476,6 +476,9 @@ export default class MultipleChoice extends RunestoneBase {
             correct: correct,
             div_id: this.divid,
         };
+        if (eBookConfig.peer && typeof studentVoteCount !== "undefined") {
+            data.act = data.act + `:vote${studentVoteCount}`;
+        }
         if (typeof sid !== "undefined") {
             data.sid = sid;
         }
@@ -551,6 +554,9 @@ export default class MultipleChoice extends RunestoneBase {
             correct: correct,
             div_id: this.divid,
         };
+        if (eBookConfig.peer && typeof studentVoteCount !== "undefined") {
+            data.act = data.act + `:vote${studentVoteCount}`;
+        }
         if (typeof sid !== "undefined") {
             data.sid = sid;
         }
@@ -677,7 +683,7 @@ export default class MultipleChoice extends RunestoneBase {
 == Find the custom HTML tags and ==
 ==   execute our code on them    ==
 =================================*/
-$(document).bind("runestone:login-complete", function () {
+$(document).on("runestone:login-complete", function () {
     $("[data-component=multiplechoice]").each(function (index) {
         // MC
         var opts = {
