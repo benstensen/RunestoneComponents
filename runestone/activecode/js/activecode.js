@@ -108,6 +108,12 @@ export class ActiveCode extends RunestoneBase {
         this.debugButton = null;
 
         this.enableCollab = true;
+        this.collabRoomPrefix = `${eBookConfig.course}_${this.divid}_`;
+        this.collabCtrlButton = null;
+        this.collabNewButton = null;
+        this.collabJoinButton = null;
+        this.collabEndButton = null;
+
         this.collabButton = null;
         this.collabRoomName = null;
         this.yDoc = null;
@@ -115,6 +121,7 @@ export class ActiveCode extends RunestoneBase {
         this.yText = null;
         this.yUndoManager = null;
         this.binding = null;
+        this.collabInfo = null;
 
         if (this.chatcodes && eBookConfig.enable_chatcodes) {
             if (!socket) {
@@ -337,7 +344,7 @@ export class ActiveCode extends RunestoneBase {
         }
         // Enable Button for Collaboration
         if (this.enableCollab) {
-            this.addCollabButton(ctrlDiv);
+            this.addCollabControlButton(ctrlDiv);
         }
 
         if (this.enableDebug) {
@@ -389,77 +396,400 @@ export class ActiveCode extends RunestoneBase {
         $(butt).attr("type", "button");
     }
 
-    addCollabButton(ctrlDiv) {
+    addCollabControlButton(ctrlDiv) {
         let butt = document.createElement("button");
-        $(butt).text("Go Online");
-        $(butt).addClass("btn collab-button btn-primary");
+        $(butt).text("Show Collab Controls");
+        $(butt).addClass("btn show-collab-button btn-primary");
         ctrlDiv.appendChild(butt);
-        this.collabButton = butt;
-        $(butt).click(this.startCollab.bind(this));
+        $(butt).on("click", this.showCollabControls.bind(this));
         $(butt).attr("type", "button");
+
+        this.collabCtrlButton = butt;
     }
 
-    startCollab() {
-        console.log("startCollab called");
-        let targetRoom = prompt("Enter a room name to join, or leave blank to create a new room");
-        if (targetRoom === null) {
-            return;
-        }
-        targetRoom = targetRoom.toString();
-        let newRoom = false;
-        if (targetRoom === "") {
-            newRoom = true;
-            targetRoom = Math.floor(Math.random() * 10000).toString();
-        }
+    showCollabControls() {
+        console.log("called showCollabControls");
+        let butt = this.collabCtrlButton;
 
-        let butt = this.collabButton;
-        $(butt).text("Go Offline");
         $(butt).removeClass("btn-primary");
         $(butt).addClass("btn-danger");
-        $(butt).unbind("click");
-        $(butt).click(this.endCollab.bind(this));
+        $(butt).text("Hide Collab Controls");
 
-        this.yDoc = new Y.Doc();
+        $(butt).off("click");
+        $(butt).on("click", this.hideCollabControls.bind(this));
 
-        // Should probably check if room exists (How will we store this info?)
-        this.provider = new WebrtcProvider(targetRoom, this.yDoc);
-        this.yText = this.yDoc.getText("editor");
-        if (newRoom) {
-            this.yText.insert(0, this.code);
+        if (this.collabCtrlDiv) {
+            this.outerDiv.appendChild(this.collabCtrlDiv);
+            return;
         }
 
-        this.provider.awareness.setLocalStateField("user", { name: eBookConfig.username });
-        this.yUndoManager = new Y.UndoManager(this.yText);
-        this.binding = new CodemirrorBinding(this.yText, this.editor, this.provider.awareness, { yUndoManager: this.yUndoManager});
-        
-        if (newRoom) {
-            alert(`Created a new room with id ${targetRoom}`);
-            console.log(`Created room: ${targetRoom}`);
-        }
+        let ctrlDiv = document.createElement("div");
+        $(ctrlDiv).addClass("col-md-12 ac-collab-controls ac-section");
+        $(ctrlDiv).css({
+            "padding-top": "20px",
+        });
 
-        this.collabRoomName = targetRoom;
+        let newButt = document.createElement("button");
+        $(newButt).text("New Room");
+        $(newButt).addClass("btn btn-primary");
+        $(newButt).on("click", this.newCollabSession.bind(this));
+
+        let joinButt = document.createElement("button");
+        $(joinButt).text("Join Room");
+        $(joinButt).addClass("btn btn-primary");
+        $(joinButt).on("click", this.joinCollabSession.bind(this));
+
+        ctrlDiv.appendChild(newButt);
+        ctrlDiv.appendChild(joinButt);
+
+        this.outerDiv.appendChild(ctrlDiv);
+        this.collabCtrlDiv = ctrlDiv;
+
+        this.collabNewButton = newButt;
+        this.collabJoinButton = joinButt;
     }
 
-    endCollab() {
-        console.log("endCollab called");
-        console.log(`disconnecting from room "${this.collabRoomName}"`);
-        let butt = this.collabButton;
-        $(butt).text("Go Online");
+    hideCollabControls() {
+        console.log("called hideCollabControls");
+        let butt = this.collabCtrlButton;
+
         $(butt).removeClass("btn-danger");
         $(butt).addClass("btn-primary");
-        $(butt).unbind("click");
-        $(butt).click(this.startCollab.bind(this));
+        $(butt).text("Show Collab Controls");
+        
+        $(butt).off("click");
+        $(butt).on("click", this.showCollabControls.bind(this));
+
+        $(this.collabCtrlDiv).detach();
+    }
+
+    async newCollabSession() {
+        console.log(`Trying to create a new session for activity ${this.divid}`);
+        try {
+            $(this.collabNewButton).prop("disabled", true);
+            $(this.collabJoinButton).prop("disabled", true);
+
+            let targetRoom = prompt("Enter new room name");
+            if (!targetRoom || targetRoom === "") {
+                throw new Error("Improper room name provided");
+            }
+
+            const reqData = {
+                "course": eBookConfig.course,
+                "activity": this.divid,
+                "owner": eBookConfig.username,
+                "room_name": targetRoom,
+            };
+    
+            let request = new Request(
+                eBookConfig.ajaxURL + "create_collab_room.json",
+                {
+                    method: "POST",
+                    headers: this.jsonHeaders,
+                    body: JSON.stringify(reqData),
+                }
+            );
+
+            let response = await fetch(request);
+            let data = await response.json();
+            if (!response.ok) {
+                throw new Error(
+                    data.error
+                );
+            }
+
+            const { connPass } = data;
+            const roomId = this.collabRoomPrefix + targetRoom;
+
+            console.log(roomId);
+            console.log(connPass);
+
+            this.yDoc = new Y.Doc();
+
+            this.provider = new WebrtcProvider(roomId, this.yDoc, { password: connPass });
+
+            this.yText = this.yDoc.getText("editor");
+            this.yText.insert(0, this.code);
+
+            this.provider.awareness.setLocalStateField("user", { name: eBookConfig.username });
+            this.yUndoManager = new Y.UndoManager(this.yText);
+            this.binding = new CodemirrorBinding(this.yText, this.editor, 
+                    this.provider.awareness, { yUndoManager: this.yUndoManager});
+
+            this.collabRoomName = targetRoom;
+
+            let endButt = document.createElement("button");
+            $(endButt).text("End Session");
+            $(endButt).addClass("btn btn-danger");
+            $(endButt).on("click", this.endCollabSession.bind(this));
+            
+            this.collabCtrlDiv.appendChild(endButt);
+            this.collabEndButton = endButt;
+
+        } catch (e) {
+            console.log(e);
+            alert(e);
+            $(this.collabNewButton).prop("disabled", false);
+            $(this.collabJoinButton).prop("disabled", false);
+        }
+    }
+
+    async endCollabSession() {
+        console.log("called endCollabSession");
+        $(this.collabEndButton).detach();
+        try {
+            const reqData = {
+                "course": eBookConfig.course,
+                "activity": this.divid,
+                "owner": eBookConfig.username,
+                "room_name": this.collabRoomName,
+            };
+    
+            let request = new Request(
+                eBookConfig.ajaxURL + "end_collab_room.json",
+                {
+                    method: "DELETE",
+                    headers: this.jsonHeaders,
+                    body: JSON.stringify(reqData),
+                }
+            );
+
+            let response = await fetch(request);
+            let data = await response.json();
+            if (!response.ok) {
+                throw new Error(
+                    data.error
+                );
+            }
+
+            this.binding.destroy();
+            this.yDoc.destroy();
+
+            this.yDoc = null;
+            this.provider = null;
+            this.yText = null;
+            this.yUndoManager = null;
+            this.binding = null;
+            this.collabRoomName = null;
+
+            $(this.collabNewButton).prop("disabled", false);
+            $(this.collabJoinButton).prop("disabled", false);
+
+            alert(data.status);
+        } catch (e) {
+            $(this.collabNewButton).prop("disabled", true);
+            $(this.collabJoinButton).prop("disabled", true);
+            this.collabCtrlDiv.appendChild(this.collabEndButton);
+            alert(e);
+            console.log(e);
+        }
+    }
+
+    async joinCollabSession() {
+        console.log("called joinCollabSession");
+        try {
+            $(this.collabNewButton).prop("disabled", true);
+            $(this.collabJoinButton).prop("disabled", true);
+
+            let targetRoom = prompt("Enter room to join");
+            if (!targetRoom || targetRoom === "") {
+                throw new Error("Improper room name provided");
+            }
+
+            const reqData = {
+                "course": eBookConfig.course,
+                "activity": this.divid,
+                "room_name": targetRoom,
+            };
+    
+            let request = new Request(
+                eBookConfig.ajaxURL + "join_collab_room.json",
+                {
+                    method: "POST",
+                    headers: this.jsonHeaders,
+                    body: JSON.stringify(reqData),
+                }
+            );
+
+            let response = await fetch(request);
+            let data = await response.json();
+            if (!response.ok) {
+                console.log(response.status);
+                throw new Error(
+                    data.error
+                );
+            }
+
+            const { connPass } = data;
+            const roomId = this.collabRoomPrefix + targetRoom;
+
+            console.log(roomId);
+            console.log(connPass);
+
+            this.yDoc = new Y.Doc();
+
+            this.provider = new WebrtcProvider(roomId, this.yDoc, { password: connPass });
+
+            this.yText = this.yDoc.getText("editor");
+
+            this.provider.awareness.setLocalStateField("user", { name: eBookConfig.username });
+            this.yUndoManager = new Y.UndoManager(this.yText);
+            this.binding = new CodemirrorBinding(this.yText, this.editor, 
+                    this.provider.awareness, { yUndoManager: this.yUndoManager});
+
+            this.collabRoomName = targetRoom;
+            
+            let endButt = document.createElement("button");
+            $(endButt).text("Leave Session");
+            $(endButt).addClass("btn btn-danger");
+            $(endButt).on("click", this.leaveCollabSession.bind(this));
+            
+            this.collabCtrlDiv.appendChild(endButt);
+            this.collabEndButton = endButt;
+        } catch (e) {
+            console.log(e);
+            $(this.collabNewButton).prop("disabled", false);
+            $(this.collabJoinButton).prop("disabled", false);
+        }
+    }
+
+    async leaveCollabSession() {
+        $(this.collabEndButton).detach();
 
         this.binding.destroy();
         this.yDoc.destroy();
-        
+
         this.yDoc = null;
         this.provider = null;
         this.yText = null;
         this.yUndoManager = null;
         this.binding = null;
         this.collabRoomName = null;
+
+        $(this.collabNewButton).prop("disabled", false);
+        $(this.collabJoinButton).prop("disabled", false);
     }
+
+    // addCollabButton(ctrlDiv) {
+    //     let butt = document.createElement("button");
+    //     $(butt).text("Go Online");
+    //     $(butt).addClass("btn collab-button btn-primary");
+    //     ctrlDiv.appendChild(butt);
+    //     this.collabButton = butt;
+    //     $(butt).click(this.startCollab.bind(this));
+    //     $(butt).attr("type", "button");
+    // }
+
+    // async startCollab() {
+    //     console.log("startCollab called");
+    //     let targetRoom = prompt("Enter a room name to join, or leave blank to create a new room");
+    //     if (targetRoom === null) {
+    //         return;
+    //     }
+    //     targetRoom = targetRoom.toString();
+    //     let newRoom = false;
+    //     if (targetRoom === "") {
+    //         newRoom = true;
+    //         targetRoom = Math.floor(Math.random() * 10000).toString();
+    //     }
+
+    //     let butt = this.collabButton;
+    //     $(butt).text("Go Offline");
+    //     $(butt).removeClass("btn-primary");
+    //     $(butt).addClass("btn-danger");
+    //     $(butt).unbind("click");
+    //     $(butt).click(this.endCollab.bind(this));
+
+    //     this.yDoc = new Y.Doc();
+
+    //     // Should probably check if room exists (How will we store this info?)
+    //     this.provider = new WebrtcProvider(this.divid + '-' + targetRoom, this.yDoc);
+    //     this.yText = this.yDoc.getText("editor");
+    //     if (newRoom) {
+    //         this.yText.insert(0, this.code);
+    //     }
+
+    //     this.provider.awareness.setLocalStateField("user", { name: eBookConfig.username });
+    //     this.yUndoManager = new Y.UndoManager(this.yText);
+    //     this.binding = new CodemirrorBinding(this.yText, this.editor, this.provider.awareness, { yUndoManager: this.yUndoManager});
+        
+    //     if (newRoom) {
+    //         alert(`Created a new room with id ${targetRoom}`);
+    //         console.log(`Created room: ${targetRoom}`);
+    //     }
+
+    //     this.collabRoomName = targetRoom;
+    //     this.showCollabInfo();
+    // }
+
+    // showCollabInfo() {
+    //     var info = {
+    //         "root": document.createElement("ul"),
+    //         "roomName": document.createElement("li"),
+    //         "userList": document.createElement("li"),
+    //     };
+
+    //     this.outerDiv.appendChild(info["root"]);
+
+    //     $(info["root"]).addClass("collab-info");
+    //     $(info["root"]).css({
+    //         "padding-top": "10px",
+    //         "list-style-type": "none",
+    //     });
+    //     info["root"].appendChild(info["roomName"]);
+    //     info["root"].appendChild(info["userList"]);
+
+    //     $(info["roomName"]).addClass("collab-roomname");
+    //     $(info["roomName"]).text(`Room Name: ${this.collabRoomName}`);
+
+    //     $(info["userList"]).addClass("collab-userlist");
+        
+    //     if (this.collabInfo !== null) {
+    //         throw Error("collabInfo already set");
+    //     }
+    //     this.collabInfo = info;
+    //     this.provider.awareness.on("change", this.updateUsersList.bind(this));
+    //     this.updateUsersList();
+    // }
+
+    updateUsersList() {
+        var users = [];
+        this.provider.awareness.getStates().forEach(state => {
+            if (state.user && state.user.name !== null) {
+                users.push(state.user.name);
+            }
+        });
+        $(this.collabInfo["userList"]).text(`Users: ${users.join(", ")}`);
+    }
+
+    // endCollab() {
+    //     console.log("endCollab called");
+    //     console.log(`disconnecting from room "${this.collabRoomName}"`);
+    //     let butt = this.collabButton;
+    //     $(butt).text("Go Online");
+    //     $(butt).removeClass("btn-danger");
+    //     $(butt).addClass("btn-primary");
+    //     $(butt).unbind("click");
+    //     $(butt).click(this.startCollab.bind(this));
+
+    //     this.hideCollabInfo();
+
+    //     this.binding.destroy();
+    //     this.yDoc.destroy();
+        
+    //     this.yDoc = null;
+    //     this.provider = null;
+    //     this.yText = null;
+    //     this.yUndoManager = null;
+    //     this.binding = null;
+    //     this.collabRoomName = null;
+    // }
+
+    // hideCollabInfo() {
+    //     $(this.collabInfo["root"]).detach();
+    //     // probably don't need to set null (just reuse old root)
+    //     this.collabInfo = null;
+    // }
 
     addDebugButton(ctrlDiv) {
         let butt = document.createElement("button");
@@ -472,8 +802,20 @@ export class ActiveCode extends RunestoneBase {
     }
 
     // Magic debug button
-    debugHandler() {
+    async debugHandler() {
         console.log("debugHandler called");
+        console.log(eBookConfig);
+        // this.createCollabRoom("test-name");
+        let request = new Request(
+            eBookConfig.ajaxURL + "debug_endpoint.json",
+            {
+                method: "GET",
+                headers: this.jsonHeaders,
+            }
+        );
+        let post_promise = await fetch(request);
+        let status = await post_promise.json();
+        console.log(status);
     }
 
     enableHideShow(ctrlDiv) {
